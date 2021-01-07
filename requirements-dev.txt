@@ -1,0 +1,4 @@
+black>="20"
+pytest>="6"
+pytest-benchmark>="3.2.3"
+pytest-benchmark[histogram]
