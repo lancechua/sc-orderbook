@@ -42,9 +42,41 @@ class SideOrderBook(SortedDict):
         self._is_bids = self.side == Side.BIDS
         super().__init__(init_data)
 
+        self.add_premium = self._add_premium
+        self.apply_discount = self._apply_discount
+
     @property
     def is_bids(self):
         return self._is_bids
+
+    # pylint: disable=method-hidden
+    @staticmethod
+    def add_premium(is_bids: bool, price: float, premium: float):
+        """[staticmethod] Adds a premium to the price (i.e. "worsens" the price)
+
+        Returns
+        -------
+        float
+            price * (1 +/- premium); + if asks, - if bids
+        """
+        return price * (1 - premium) if is_bids else price * (1 + premium)
+
+    @staticmethod
+    def apply_discount(is_bids: bool, price: float, discount: float):
+        return SideOrderBook.add_premium(is_bids, price, -discount)
+
+    def _add_premium(self, price: float, premium: float):
+        """[classmethod] Adds a premium to the price (i.e. "worsens" the price)
+
+        Returns
+        -------
+        float
+            price * (1 +/- premium); + if asks, - if bids
+        """
+        return price * (1 - premium) if self._is_bids else price * (1 + premium)
+
+    def _apply_discount(self, price: float, discount: float):
+        return self._add_premium(price, -discount)
 
     def purge(self) -> None:
         """Remove keys with 0 value"""
@@ -99,11 +131,10 @@ class SideOrderBook(SortedDict):
         buffer_remain = buffer
         qty_remain = quantity
         total_amt, total_qty = 0, 0
-        best_price, worst_price = None, None
+        best_price, price_i = None, None
 
         # pylint: disable=bad-reversed-sequence
         price_iter = reversed(self) if self._is_bids else iter(self)
-
         for price_i in price_iter:
             qty_i = self[price_i]
 
@@ -126,10 +157,9 @@ class SideOrderBook(SortedDict):
         else:
             warnings.warn("`quantity` exceeded orderbook depth!")
 
-        worst_price = price_i
         return {
             "average": (total_amt / total_qty) if total_qty > 0 else None,
             "best": best_price,
-            "worst": worst_price,
+            "worst": price_i,
             "total_qty": total_qty,
         }
